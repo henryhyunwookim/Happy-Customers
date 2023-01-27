@@ -26,3 +26,5 @@ Attributes X1 to X6 indicate the responses for each question and have values fro
 - Predict if a customer is happy or not based on the answers they give to questions asked, and reach 73% accuracy score or above.
 - Using a feature selection approach, identify the minimal set of attributes/features that would preserve the most information about the problem while increasing predictability of the data we have.
 - Using a feature selection approach, identify any question that we can remove in our next survey.
+
+##### Source: Apziva
