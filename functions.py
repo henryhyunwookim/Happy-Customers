@@ -58,66 +58,6 @@ def load_data(file_name, folder_name=None):
     return pd.read_csv(path)
 
 
-# Initialize default variables
-# folder_name="data"
-# file_name="ACME-HappinessSurvey2020.csv"
-# survey_df = load_data(file_name, folder_name)
-# survey_df["Y"] = survey_df["Y"].astype('category').cat.set_categories([0, 1], ordered=True)
-
-# significance_level=0.05
-# test_size=0.2
-# n=100
-
-# combinations = [
-#         ["X1", "X3"],
-#         ["X1", "X5"],
-#         ["X1", "X6"],
-#         ["X1", "X3", "X5"],
-#         ["X1", "X3", "X6"],
-#         ["X1", "X5", "X6"],
-#         ["X1", "X3", "X5", "X6"]
-#     ]
-
-# logistic_regression = LogisticRegression()
-# random_forest = RandomForestClassifier()
-# ada_boost = AdaBoostClassifier()
-# gaussian = GaussianNB()
-# bernoulli = BernoulliNB()
-# logistic_regression_cv = LogisticRegressionCV()
-# linear_discriminant = LinearDiscriminantAnalysis()
-# quadratic_discriminant = QuadraticDiscriminantAnalysis()
-# gradient_boosting = GradientBoostingClassifier()
-# extra_trees = ExtraTreesClassifier()
-# decision_tree = DecisionTreeClassifier()
-# sgd = SGDClassifier()
-# mlp = MLPClassifier()
-# k_neighbors = KNeighborsClassifier()
-# one_class_svm = OneClassSVM()
-# linear_scv = LinearSVC()
-# nu_svc = NuSVC()
-# svc = SVC()
-# bagging = BaggingClassifier()
-# classifiers = [logistic_regression, random_forest, ada_boost, gaussian, bernoulli,
-#               logistic_regression_cv, linear_discriminant, quadratic_discriminant, gradient_boosting,
-#               extra_trees, decision_tree, sgd, mlp, k_neighbors,
-#               one_class_svm, linear_scv, nu_svc, svc, bagging]
-# classifier=LogisticRegressionCV()
-
-# transformers = [
-#     Nystroem(),
-#     SkewedChi2Sampler(),
-#     PolynomialCountSketch(),
-#     AdditiveChi2Sampler(),
-#     RBFSampler(),
-#     PolynomialFeatures(2),
-#     PolynomialFeatures(3),
-#     PolynomialFeatures(4),
-#     SplineTransformer(2),
-#     SplineTransformer(3),
-#     SplineTransformer(4)
-#     ]
-# transformer=AdditiveChi2Sampler()
-
 # decomposers = [
 #     # PCA(n_components=0.95, svd_solver='full'),
 #     PCA(),
@@ -423,43 +363,64 @@ def eval_models(X, y, test_size, n, classifiers=classifiers):
     eval_df = pd.DataFrame(eval_dict).T.sort_values(
         ["Mean", "Max", "Min", "Std", "Time elapsed"],
         ascending=[False, False, True, True, True])
-    print(f"{eval_df.index[0]} yielded the best mean accuracy score of {eval_df.iloc[0, 0]}")
+    
+    best_classifier_str = eval_df.index[0]
+    best_accuracy = eval_df.iloc[0, 0]
+    print(f"{best_classifier_str} yielded the best mean accuracy score of {best_accuracy}")
     return eval_df
 
 
-# def get_best_feature_combination(combinations=combinations,
-#                                  classifier=classifier,
-#                                  data_str="survey_df",
-#                                  target_str='survey_df["Y"]',
-#                                  test_size=test_size,
-#                                  n=n):
-#     best_score = 0
-#     print(f"""
-# Default parameters:
-# - Classifier: {classifier}
-# - Data: {data_str}
-# - Target: {target_str}
-# - Test size: {test_size}
-# - Number of iteration: {n}
-# """)
-#     for combination in combinations:
-#         score = np.mean(get_mean_accuracy_score(combination))
-#         if score > best_score:
-#             best_score = score
-#             best_features = ", ".join(combination)
-#     print(f"\nBest score {best_score} was achieved with {best_features}")
+combinations = [
+        ["X1", "X3"],
+        ["X1", "X5"],
+        ["X1", "X6"],
+        ["X1", "X3", "X5"],
+        ["X1", "X3", "X6"],
+        ["X1", "X5", "X6"],
+        ["X1", "X3", "X5", "X6"]
+        ]
+def get_best_feature_combination(data,
+                                 target,
+                                 classifier,
+                                 test_size,
+                                 n,
+                                 combinations=combinations):
+    best_score = 0
+    for combination in combinations:
+        score = np.mean(get_mean_accuracy_score(data[combination],
+                                                target,
+                                                classifier,
+                                                test_size,
+                                                n))
+        if score > best_score:
+            best_score = score
+            best_features = ", ".join(combination)
+    print(f"\nBest score {round(best_score, 2)} was achieved with {best_features}")
+    return best_features
 
 
-# def eval_transformers(training_features, transformers=transformers, n=n):
-#     eval_dict, scores_dict = get_dicts(training_features, transformers=transformers, n=n)
+transformers = [
+    Nystroem(),
+    SkewedChi2Sampler(),
+    PolynomialCountSketch(),
+    AdditiveChi2Sampler(),
+    RBFSampler(),
+    PolynomialFeatures(),
+    SplineTransformer()
+    ]
+def eval_transformers(X, y, test_size, n, classifier, transformers=transformers):
+    eval_dict, scores_dict = get_dicts(X, y, test_size, n, classifier=classifier, transformers=transformers)
 
-#     plot_scores(scores_dict)
+    plot_scores(scores_dict)
 
-#     eval_df = pd.DataFrame(eval_dict).T.sort_values(
-#         ["Mean", "Max", "Min", "Std", "Time elapsed"],
-#         ascending=[False, False, True, True, True])
-#     print(f"{eval_df.index[0]} yielded the best mean accuracy score of {eval_df.iloc[0, 0]}")
-#     return eval_df
+    eval_df = pd.DataFrame(eval_dict).T.sort_values(
+        ["Mean", "Max", "Min", "Std", "Time elapsed"],
+        ascending=[False, False, True, True, True])
+    
+    best_transformer = eval_df.index[0]
+    best_accuracy = eval_df.iloc[0, 0]
+    print(f"{best_transformer} yielded the best mean accuracy score of {best_accuracy}")
+    return eval_df
 
 
 # def get_accuracy_score_with_all_features(transformers=transformers, classifier=classifier, n=n, test_size=test_size):
