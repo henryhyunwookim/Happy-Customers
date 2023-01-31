@@ -49,7 +49,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=(FutureWarning, UserWarning, RuntimeWarning))
 
 
-# Define the function for loading the data set
+# Define functions
 def load_data(file_name, folder_name=None):
     if folder_name != None:
         path = Path("/".join([os.getcwd(), folder_name, file_name]))
@@ -58,20 +58,6 @@ def load_data(file_name, folder_name=None):
     return pd.read_csv(path)
 
 
-# decomposers = [
-#     # PCA(n_components=0.95, svd_solver='full'),
-#     PCA(),
-#     KernelPCA(),
-#     FastICA(),
-#     SparsePCA(),
-#     IncrementalPCA(),
-#     TruncatedSVD(),
-#     MiniBatchSparsePCA(),
-#     FeatureAgglomeration()
-# ]  
-
-
-# Define functions
 def plot_histograms(data, target, target_figsize, dependent_layout, dependent_figsize):
     print(f"Distribution of target {target} and dependent variables:")
     data[target].hist(figsize=target_figsize, grid=False).set_title(target)
@@ -202,45 +188,46 @@ def get_mean_accuracy_score(
         decomposer=None):
     
     scores = []
-    try:
-        for i in range(n):
+    for i in range(n):
+        try:
             X_train, X_test, y_train, y_test = \
                 train_test_split(X, y, test_size=test_size)
             X_train, y_train = SMOTE().fit_resample(X_train, y_train)
             X_test, y_test = SMOTE().fit_resample(X_test, y_test)
             
-            if transformer==None:
-                classifier.fit(X_train, y_train)
-                score = accuracy_score(y_test, classifier.predict(X_test))
-            
-            elif decomposer!=None:
+            if transformer!=None:
                 X_transformed_train = transformer.fit_transform(X_train, y_train)
                 X_transformed_test = transformer.transform(X_test)
+
+                if decomposer!=None:
+                    try:
+                        X_decomposed_train = decomposer.fit_transform(X_transformed_train)
+                        X_decomposed_test = decomposer.transform(X_transformed_test)
+                    except ValueError:
+                        print(f"Decomposition by {decomposer} failed. Moving on to the next iteration.")
                 
-                try:
-                    components = decomposer.fit_transform(X_transformed_train)
-                except ValueError:
-                    print(f"Decomposition by {decomposer} failed. Moving on to the next iteration.")
+                    classifier.fit(X_decomposed_train, y_train)
+                    score = accuracy_score(y_test, classifier.predict(X_decomposed_test))
                 
-                classifier.fit(components, y_train)
-                score = accuracy_score(y_test, classifier.predict(decomposer.transform(X_transformed_test)))
-            
+                else:
+                    classifier.fit(X_transformed_train, y_train)
+                    score = accuracy_score(y_test, classifier.predict(X_transformed_test))
+
             else:
-                X_transformed = transformer.fit_transform(X_train, y_train)  
-                classifier.fit(X_transformed, y_train)
-                score = accuracy_score(y_test, classifier.predict(transformer.transform(X_test)))
+                classifier.fit(X_train, y_train)
+                score = accuracy_score(y_test, classifier.predict(X_test))
 
             scores.append(score)
     
-    except Exception as e:
-        print(f"Exception: {e}")
-        if classifier!=None:
-            print(f"Classifier: {classifier}")
-        if transformer!=None:
-            print(f"Transformer: {transformer}")
-        if decomposer!=None:
-            print(f"Decomposer: {decomposer}")
-        print("Moving on.\n")
+        except Exception as e:
+            print(f"Exception: {e}")
+            if classifier!=None:
+                print(f"Classifier: {classifier}")
+            if transformer!=None:
+                print(f"Transformer: {transformer}")
+            if decomposer!=None:
+                print(f"Decomposer: {decomposer}")
+            print("Moving on.\n")
 
     if transformer==None and decomposer==None:
         print(f"Mean prediction accuracy score based on training with {list(X.columns)}: {round(np.mean(scores), 2)}")
@@ -254,75 +241,79 @@ def get_dicts(X, y, test_size, n,
     eval_dict = {}
     scores_dict = {}
 
-    try:
-        if classifiers!=None:
-            for classifier in classifiers:
-                key = type(classifier).__name__
-                start_time = time.time()
-                if transformer==None:
-                    scores = get_mean_accuracy_score(X, y, classifier, test_size, n)
-                else:
-                    scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                    transformer=transformer)
-                time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-                
-                eval_dict[key] = {
-                    "Mean": round(np.mean(scores), 2),
-                    "Std": round(np.std(scores), 2),
-                    "Max": round(np.max(scores), 2),
-                    "Min": round(np.min(scores), 2),
-                    "Time elapsed": time_elapsed}
-                scores_dict[key] = scores
-
-                print(f"Classifier: {key}")
-                print(eval_dict[key], "\n")
-
-        elif transformers!=None:
-            for transformer in transformers:
-                start_time = time.time()
+    # try:
+    if classifiers!=None:
+        for classifier in classifiers:
+            key = type(classifier).__name__
+            start_time = time.time()
+            if transformer==None:
+                scores = get_mean_accuracy_score(X, y, classifier, test_size, n)
+            else:
                 scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                 transformer=transformer)
-                time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-                
-                eval_dict[transformer] = {
-                    "Mean": round(np.mean(scores), 2),
-                    "Std": round(np.std(scores), 2),
-                    "Max": round(np.max(scores), 2),
-                    "Min": round(np.min(scores), 2),
-                    "Time elapsed": time_elapsed}
-                scores_dict[transformer] = scores
+                                                transformer=transformer)
+            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            
+            eval_dict[key] = {
+                "Mean": round(np.mean(scores), 2),
+                "Std": round(np.std(scores), 2),
+                "Max": round(np.max(scores), 2),
+                "Min": round(np.min(scores), 2),
+                "Time elapsed": time_elapsed}
+            scores_dict[key] = scores
 
-                print(f"Transformer: {transformer}")
-                print(eval_dict[transformer], "\n")
-                
-        elif decomposers!=None:
-            for decomposer in decomposers:
-                start_time = time.time()
-                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                 transformer=transformer,
-                                                 decomposer=decomposer)
-                time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-                
-                eval_dict[decomposer] = {
-                    "Mean": round(np.mean(scores), 2),
-                    "Std": round(np.std(scores), 2),
-                    "Max": round(np.max(scores), 2),
-                    "Min": round(np.min(scores), 2),
-                    "Time elapsed": time_elapsed}
-                scores_dict[decomposer] = scores
-                
-                print(f"Decomposer: {decomposer}")
-                print(eval_dict[decomposer], "\n")
+            print(f"Classifier: {key}")
+            print(eval_dict[key], "\n")
 
-    except Exception as e:
-        print(f"Exception: {e}")
-        if classifier!=None:
-            print(f"Classifier: {classifier}")
-        if transformer!=None:
+    elif transformers!=None:
+        for transformer in transformers:
+            start_time = time.time()
+            scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
+                                                transformer=transformer)
+            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            
+            eval_dict[transformer] = {
+                "Mean": round(np.mean(scores), 2),
+                "Std": round(np.std(scores), 2),
+                "Max": round(np.max(scores), 2),
+                "Min": round(np.min(scores), 2),
+                "Time elapsed": time_elapsed}
+            scores_dict[transformer] = scores
+
             print(f"Transformer: {transformer}")
-        if decomposer!=None:
+            print(eval_dict[transformer], "\n")
+            
+    elif decomposers!=None:
+        for decomposer in decomposers:
+            start_time = time.time()
+            if transformer==None:
+                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
+                                                decomposer=decomposer)
+            else:
+                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
+                                                transformer=transformer,
+                                                decomposer=decomposer)
+            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            
+            eval_dict[decomposer] = {
+                "Mean": round(np.mean(scores), 2),
+                "Std": round(np.std(scores), 2),
+                "Max": round(np.max(scores), 2),
+                "Min": round(np.min(scores), 2),
+                "Time elapsed": time_elapsed}
+            scores_dict[decomposer] = scores
+            
             print(f"Decomposer: {decomposer}")
-        print("Moving on.\n")
+            print(eval_dict[decomposer], "\n")
+
+    # except Exception as e:
+    #     print(f"Exception: {e}")
+    #     if classifier!=None:
+    #         print(f"Classifier: {classifier}")
+    #     if transformer!=None:
+    #         print(f"Transformer: {transformer}")
+    #     if decomposer!=None:
+    #         print(f"Decomposer: {decomposer}")
+    #     print("Moving on.\n")
 
     return eval_dict, scores_dict
 
@@ -348,6 +339,7 @@ def plot_scores(scores_dict):
         ax.set_xlabel("Accuracy Score")
         ax.set_xbound(0, 1)
 
+
 logistic_regression = LogisticRegression() # One of the most basic classifiers
 random_forest = RandomForestClassifier() # decision tree ensemble model where each tree is built independently
 xg_boost = XGBClassifier() # eXtreme Gradient Boosting; decision tree ensemble model where each tree is built one after another
@@ -356,7 +348,8 @@ sgd = SGDClassifier() # linear classifier optimized by Stochastic Gradient Desce
 mlp = MLPClassifier() # Multi-Layer Perceptron classifier (neural network)
 classifiers = [logistic_regression, random_forest, xg_boost, ada_boost, sgd, mlp]
 def eval_models(X, y, test_size, n, classifiers=classifiers):
-    eval_dict, scores_dict = get_dicts(X, y, test_size, n, classifiers=classifiers)
+    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+                                       classifiers=classifiers)
 
     plot_scores(scores_dict)
 
@@ -409,7 +402,9 @@ transformers = [
     SplineTransformer()
     ]
 def eval_transformers(X, y, test_size, n, classifier, transformers=transformers):
-    eval_dict, scores_dict = get_dicts(X, y, test_size, n, classifier=classifier, transformers=transformers)
+    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+                                       classifier=classifier,
+                                       transformers=transformers)
 
     plot_scores(scores_dict)
 
@@ -423,40 +418,30 @@ def eval_transformers(X, y, test_size, n, classifier, transformers=transformers)
     return eval_df
 
 
-# def get_accuracy_score_with_all_features(transformers=transformers, classifier=classifier, n=n, test_size=test_size):
-#     scores = []
-#     for i in range(n):
-#         X_balanced, y_balanced = SMOTE().fit_resample(survey_df[["X1", "X6"]], survey_df["Y"])
-        
-#         X_train, X_test, y_train, y_test = \
-#             train_test_split(X_balanced, y_balanced, test_size=test_size)
-        
-#         for j, transformer in enumerate(transformers):
-#             X_transformed_train = transformer.fit_transform(X_train, y_train)
-#             X_transformed_test = transformer.transform(X_test)
-#             if j==0:
-#                 X_combined_train = X_transformed_train
-#                 X_combined_test = X_transformed_test
-#             else:
-#                 X_combined_train = np.concatenate((X_combined_train, X_transformed_train), axis=1)
-#                 X_combined_test = np.concatenate((X_combined_test, X_transformed_test), axis=1)
-        
-#         if i == range(n)[0]:
-#             print(f"Total number of features for training: {X_combined_train.shape[1]}")
-#         classifier.fit(X_combined_train, y_train)
-#         score = accuracy_score(y_test, classifier.predict(X_combined_test))
-#         scores.append(score)
+decomposers = [
+    # PCA(n_components=0.95, svd_solver='full'),
+    PCA(),
+    KernelPCA(),
+    FastICA(),
+    SparsePCA(),
+    IncrementalPCA(),
+    TruncatedSVD(),
+    MiniBatchSparsePCA(),
+    FeatureAgglomeration()
+]
+def eval_decomposers(X, y, test_size, n, classifier, transformer, decomposers=decomposers):
+    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+                                       classifier=classifier,
+                                       transformer=transformer,
+                                       decomposers=decomposers)
 
-#     return round(np.mean(scores), 2)
+    plot_scores(scores_dict)
 
-
-# def eval_decomposers(training_features, classifier=classifier, transformer=transformer, decomposers=decomposers):
-#     eval_dict, scores_dict = get_dicts(training_features, decomposers=decomposers)
-
-#     plot_scores(scores_dict)
-
-#     eval_df = pd.DataFrame(eval_dict).T.sort_values(
-#         ["Mean", "Max", "Min", "Std", "Time elapsed"],
-#         ascending=[False, False, True, True, True])
-#     print(f"{eval_df.index[0]} yielded the best mean accuracy score of {eval_df.iloc[0, 0]}")
-#     return eval_df
+    eval_df = pd.DataFrame(eval_dict).T.sort_values(
+        ["Mean", "Max", "Min", "Std", "Time elapsed"],
+        ascending=[False, False, True, True, True])
+    
+    best_decomposer = eval_df.index[0]
+    best_accuracy = eval_df.iloc[0, 0]
+    print(f"{best_decomposer} yielded the best mean accuracy score of {best_accuracy}")
+    return eval_df
