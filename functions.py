@@ -29,9 +29,11 @@ from sklearn.model_selection import train_test_split, cross_val_score,\
 from sklearn.metrics import accuracy_score
 from sklearn.utils import resample
 from imblearn.over_sampling import SMOTE
+from sklearn.pipeline import make_pipeline
 from scipy import stats
 from scipy.stats import ttest_1samp
 import statsmodels.api as sm
+
 
 # Visualization libraries
 import seaborn as sns
@@ -168,152 +170,131 @@ def split_data(X, y, test_size, random_state=None, oversampling=True):
     if random_state != None:
         if oversampling:
             X_train, X_test, y_train, y_test = \
-                train_test_split(X, y, test_size=test_size, random_state=random_state)
+                train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
             X_train, y_train = SMOTE().fit_resample(X_train, y_train)
             X_test, y_test = SMOTE().fit_resample(X_test, y_test)
             return X_train, X_test, y_train, y_test
         else:
-            return train_test_split(X, y, test_size=test_size, random_state=random_state)
+            return train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
     else:
-        return train_test_split(X, y, test_size=test_size)
+        return train_test_split(X, y, test_size=test_size, stratify=y)
 
 
-def get_mean_accuracy_score(
-        X,
-        y,
-        classifier,
-        test_size,
-        n,
-        transformer=None,
-        decomposer=None):
+# def get_mean_accuracy_score(
+#         X,
+#         y,
+#         classifier,
+#         test_size,
+#         n,
+#         transformer=None,
+#         decomposer=None):
     
-    scores = []
-    for i in range(n):
-        try:
-            X_train, X_test, y_train, y_test = \
-                train_test_split(X, y, test_size=test_size)
-            X_train, y_train = SMOTE().fit_resample(X_train, y_train)
-            X_test, y_test = SMOTE().fit_resample(X_test, y_test)
+#     scores = []
+#     for i in range(n):
+#         try:
+#             X_train, X_test, y_train, y_test = \
+#                 train_test_split(X, y, test_size=test_size, stratify=y)
+#             X_train, y_train = SMOTE().fit_resample(X_train, y_train)
+#             X_test, y_test = SMOTE().fit_resample(X_test, y_test)
             
-            if transformer!=None:
-                X_transformed_train = transformer.fit_transform(X_train, y_train)
-                X_transformed_test = transformer.transform(X_test)
+#             if transformer!=None:
+#                 X_transformed_train = transformer.fit_transform(X_train, y_train)
+#                 X_transformed_test = transformer.transform(X_test)
 
-                if decomposer!=None:
-                    try:
-                        X_decomposed_train = decomposer.fit_transform(X_transformed_train)
-                        X_decomposed_test = decomposer.transform(X_transformed_test)
-                    except ValueError:
-                        print(f"Decomposition by {decomposer} failed. Moving on to the next iteration.")
+#                 if decomposer!=None:
+#                     try:
+#                         X_decomposed_train = decomposer.fit_transform(X_transformed_train)
+#                         X_decomposed_test = decomposer.transform(X_transformed_test)
+#                     except ValueError:
+#                         print(f"Decomposition by {decomposer} failed. Moving on to the next iteration.")
                 
-                    classifier.fit(X_decomposed_train, y_train)
-                    score = accuracy_score(y_test, classifier.predict(X_decomposed_test))
+#                     classifier.fit(X_decomposed_train, y_train)
+#                     score = accuracy_score(y_test, classifier.predict(X_decomposed_test))
                 
-                else:
-                    classifier.fit(X_transformed_train, y_train)
-                    score = accuracy_score(y_test, classifier.predict(X_transformed_test))
+#                 else:
+#                     classifier.fit(X_transformed_train, y_train)
+#                     score = accuracy_score(y_test, classifier.predict(X_transformed_test))
 
-            else:
-                classifier.fit(X_train, y_train)
-                score = accuracy_score(y_test, classifier.predict(X_test))
+#             else:
+#                 classifier.fit(X_train, y_train)
+#                 score = accuracy_score(y_test, classifier.predict(X_test))
 
-            scores.append(score)
+#             scores.append(score)
     
-        except Exception as e:
-            print(f"Exception: {e}")
-            if classifier!=None:
-                print(f"Classifier: {classifier}")
-            if transformer!=None:
-                print(f"Transformer: {transformer}")
-            if decomposer!=None:
-                print(f"Decomposer: {decomposer}")
-            print("Moving on.\n")
+#         except Exception as e:
+#             print(f"Exception: {e}")
+#             if classifier!=None:
+#                 print(f"Classifier: {classifier}")
+#             if transformer!=None:
+#                 print(f"Transformer: {transformer}")
+#             if decomposer!=None:
+#                 print(f"Decomposer: {decomposer}")
+#             print("Moving on.\n")
 
-    if transformer==None and decomposer==None:
-        print(f"Mean prediction accuracy score based on training with {list(X.columns)}: {round(np.mean(scores), 2)}")
-    return scores
+#     if transformer==None and decomposer==None:
+#         print(f"Mean prediction accuracy score based on training with {list(X.columns)}: {round(np.mean(scores), 2)}")
+#     return scores
 
 
-def get_dicts(X, y, test_size, n,
+def update_dicts(clf, X, y, n_splits, n, eval_dict, scores_dict, key, random_state):
+    start_time = time.time()
+    scores = cross_val_score(clf, X, y, scoring='roc_auc',
+                             cv=RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n, random_state=random_state))
+    time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+    
+    eval_dict[key] = {
+        "Mean": round(np.mean(scores), 4),
+        "Std": round(np.std(scores), 4),
+        "Max": round(np.max(scores), 4),
+        "Min": round(np.min(scores), 4),
+        "Time elapsed": time_elapsed}
+    scores_dict[key] = scores
+
+    print(f"Classifier: {key}")
+    print(eval_dict[key], "\n")
+
+    return eval_dict, scores_dict
+
+
+def get_dicts(X, y, n_splits, n, random_state,
               classifiers=None, classifier=None,
               transformers=None, transformer=None,
-              decomposers=None, decomposer=None):
+              decomposers=None, decomposer=None,
+              combinations=None):
     eval_dict = {}
     scores_dict = {}
-
-    # try:
-    if classifiers!=None:
+    if classifiers != None:
         for classifier in classifiers:
             key = type(classifier).__name__
-            start_time = time.time()
-            if transformer==None:
-                scores = get_mean_accuracy_score(X, y, classifier, test_size, n)
-            else:
-                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                transformer=transformer)
-            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            clf = make_pipeline(classifier)
+            eval_dict, scores_dict = update_dicts(clf, X, y, n_splits, n,
+                                                  eval_dict, scores_dict, key, random_state)
+
+    elif combinations != None:
+        if classifier == None:
+            raise Exception("You need to specify a classifier!")
+        for features in combinations:
+            eval_dict, scores_dict = update_dicts(classifier, X[features], y, n_splits, n,
+                                                  eval_dict, scores_dict, ", ".join(features), random_state)
             
-            eval_dict[key] = {
-                "Mean": round(np.mean(scores), 2),
-                "Std": round(np.std(scores), 2),
-                "Max": round(np.max(scores), 2),
-                "Min": round(np.min(scores), 2),
-                "Time elapsed": time_elapsed}
-            scores_dict[key] = scores
-
-            print(f"Classifier: {key}")
-            print(eval_dict[key], "\n")
-
-    elif transformers!=None:
+    elif transformers != None:
+        if classifier == None:
+            raise Exception("You need to specify a classifier!")
         for transformer in transformers:
-            start_time = time.time()
-            scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                transformer=transformer)
-            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-            
-            eval_dict[transformer] = {
-                "Mean": round(np.mean(scores), 2),
-                "Std": round(np.std(scores), 2),
-                "Max": round(np.max(scores), 2),
-                "Min": round(np.min(scores), 2),
-                "Time elapsed": time_elapsed}
-            scores_dict[transformer] = scores
+            clf = make_pipeline(transformer, classifier)
+            eval_dict, scores_dict = update_dicts(clf, X, y, n_splits, n,
+                                                  eval_dict, scores_dict, transformer, random_state)
 
-            print(f"Transformer: {transformer}")
-            print(eval_dict[transformer], "\n")
-            
-    elif decomposers!=None:
+    elif decomposers != None:
+        if classifier == None:
+            raise Exception("You need to specify a classifier!")
         for decomposer in decomposers:
-            start_time = time.time()
-            if transformer==None:
-                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                decomposer=decomposer)
-            else:
-                scores = get_mean_accuracy_score(X, y, classifier, test_size, n,
-                                                transformer=transformer,
-                                                decomposer=decomposer)
-            time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            clf = make_pipeline(decomposer, classifier)
+            eval_dict, scores_dict = update_dicts(clf, X, y, n_splits, n,
+                                                  eval_dict, scores_dict, decomposer, random_state)
             
-            eval_dict[decomposer] = {
-                "Mean": round(np.mean(scores), 2),
-                "Std": round(np.std(scores), 2),
-                "Max": round(np.max(scores), 2),
-                "Min": round(np.min(scores), 2),
-                "Time elapsed": time_elapsed}
-            scores_dict[decomposer] = scores
-            
-            print(f"Decomposer: {decomposer}")
-            print(eval_dict[decomposer], "\n")
-
-    # except Exception as e:
-    #     print(f"Exception: {e}")
-    #     if classifier!=None:
-    #         print(f"Classifier: {classifier}")
-    #     if transformer!=None:
-    #         print(f"Transformer: {transformer}")
-    #     if decomposer!=None:
-    #         print(f"Decomposer: {decomposer}")
-    #     print("Moving on.\n")
+    else:
+        raise Exception("Failed to determine what to evaluate.")
 
     return eval_dict, scores_dict
 
@@ -340,15 +321,14 @@ def plot_scores(scores_dict):
         ax.set_xbound(0, 1)
 
 
-logistic_regression = LogisticRegression() # One of the most basic classifiers
-random_forest = RandomForestClassifier() # decision tree ensemble model where each tree is built independently
-xg_boost = XGBClassifier() # eXtreme Gradient Boosting; decision tree ensemble model where each tree is built one after another
-ada_boost = AdaBoostClassifier() # Adaptive Boosting
-sgd = SGDClassifier() # linear classifier optimized by Stochastic Gradient Descent
-mlp = MLPClassifier() # Multi-Layer Perceptron classifier (neural network)
-classifiers = [logistic_regression, random_forest, xg_boost, ada_boost, sgd, mlp]
-def eval_models(X, y, test_size, n, classifiers=classifiers):
-    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+def eval_models(X, y, n_splits, n, random_state):
+    classifiers = [
+        LogisticRegression(random_state=random_state), # One of the most basic classifiers
+        RandomForestClassifier(random_state=random_state), # decision tree ensemble model where each tree is built independently
+        XGBClassifier(random_state=random_state) # eXtreme Gradient Boosting; decision tree ensemble model where each tree is built one after another
+    ]
+
+    eval_dict, scores_dict = get_dicts(X, y, n_splits, n, random_state,
                                        classifiers=classifiers)
 
     plot_scores(scores_dict)
@@ -363,7 +343,8 @@ def eval_models(X, y, test_size, n, classifiers=classifiers):
     return eval_df
 
 
-combinations = [
+def eval_feature_combinations(X, y, n_splits, n, random_state, classifier):
+    combinations = [
         ["X1", "X3"],
         ["X1", "X5"],
         ["X1", "X6"],
@@ -371,38 +352,35 @@ combinations = [
         ["X1", "X3", "X6"],
         ["X1", "X5", "X6"],
         ["X1", "X3", "X5", "X6"]
-        ]
-def get_best_feature_combination(data,
-                                 target,
-                                 classifier,
-                                 test_size,
-                                 n,
-                                 combinations=combinations):
-    best_score = 0
-    for combination in combinations:
-        score = np.mean(get_mean_accuracy_score(data[combination],
-                                                target,
-                                                classifier,
-                                                test_size,
-                                                n))
-        if score > best_score:
-            best_score = score
-            best_features = ", ".join(combination)
-    print(f"\nBest score {round(best_score, 2)} was achieved with {best_features}")
-    return best_features
-
-
-transformers = [
-    Nystroem(),
-    SkewedChi2Sampler(),
-    PolynomialCountSketch(),
-    AdditiveChi2Sampler(),
-    RBFSampler(),
-    PolynomialFeatures(),
-    SplineTransformer()
     ]
-def eval_transformers(X, y, test_size, n, classifier, transformers=transformers):
-    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+    
+    eval_dict, scores_dict = get_dicts(X, y, n_splits, n, random_state,
+                                       classifier=classifier,
+                                       combinations=combinations)
+
+    plot_scores(scores_dict)
+
+    eval_df = pd.DataFrame(eval_dict).T.sort_values(
+        ["Mean", "Max", "Min", "Std", "Time elapsed"],
+        ascending=[False, False, True, True, True])
+    
+    best_features = eval_df.index[0]
+    best_accuracy = eval_df.iloc[0, 0]
+    print(f"{best_features} yielded the best mean accuracy score of {best_accuracy}")
+    return eval_df
+
+
+def eval_transformers(X, y, n_splits, n, random_state, classifier):
+    transformers = [
+        Nystroem(random_state=random_state),
+        SkewedChi2Sampler(random_state=random_state),
+        PolynomialCountSketch(random_state=random_state),
+        AdditiveChi2Sampler(),
+        RBFSampler(random_state=random_state),
+        PolynomialFeatures(),
+        SplineTransformer()
+    ]
+    eval_dict, scores_dict = get_dicts(X, y, n_splits, n, random_state,
                                        classifier=classifier,
                                        transformers=transformers)
 
@@ -418,21 +396,18 @@ def eval_transformers(X, y, test_size, n, classifier, transformers=transformers)
     return eval_df
 
 
-decomposers = [
-    # PCA(n_components=0.95, svd_solver='full'),
-    PCA(),
-    KernelPCA(),
-    FastICA(),
-    SparsePCA(),
-    IncrementalPCA(),
-    TruncatedSVD(),
-    MiniBatchSparsePCA(),
-    FeatureAgglomeration()
-]
-def eval_decomposers(X, y, test_size, n, classifier, transformer, decomposers=decomposers):
-    eval_dict, scores_dict = get_dicts(X, y, test_size, n,
+def eval_decomposers(X, y, n_splits, n, random_state, classifier):
+    decomposers = [
+        # PCA(n_components=0.95, svd_solver='full'),
+        PCA(random_state=random_state),
+        KernelPCA(random_state=random_state),
+        IncrementalPCA(),
+        TruncatedSVD(),
+        FeatureAgglomeration()
+    ]
+    
+    eval_dict, scores_dict = get_dicts(X, y, n_splits, n, random_state,
                                        classifier=classifier,
-                                       transformer=transformer,
                                        decomposers=decomposers)
 
     plot_scores(scores_dict)
@@ -445,3 +420,28 @@ def eval_decomposers(X, y, test_size, n, classifier, transformer, decomposers=de
     best_accuracy = eval_df.iloc[0, 0]
     print(f"{best_decomposer} yielded the best mean accuracy score of {best_accuracy}")
     return eval_df
+
+
+def tune_xgb_clr(X, y, n_iter=10, random_state=None, print_best=True):
+    classifier = XGBClassifier(random_state=random_state, verbosity=0)
+    params = {
+        "eta": np.arange(0.01, 0.3, 0.01), # Typical final values : 0.01-0.2
+        # "gamma": 
+        "max_depth": np.arange(1,10,1), # Typical values: 3-10
+        "min_child_weight": np.arange(1, 10, 1), # The larger min_child_weight is, the more conservative the algorithm will be.
+        "subsample": np.arange(0, 1, 0.1), # Typical values: 0.5-1; Lower values make the algorithm more conservative and prevents overfitting but too small values might lead to under-fitting.
+        "lambda": np.arange(0, 1, 0.01), # L2 regularization term on weights (analogous to Ridge regression). Increasing this value will make model more conservative.
+        "alpha": np.arange(0, 1, 0.01), # L1 regularization term on weights (analogous to Lasso regression). Increasing this value will make model more conservative.
+        "tree_method": ["auto", "exact", "approx", "hist", "gpu_hist"] # The tree construction algorithm used in XGBoost.
+    }
+    # https://xgboost.readthedocs.io/en/stable/parameter.html
+    # https://www.kaggle.com/code/prashant111/a-guide-on-xgboost-hyperparameters-tuning/notebook
+    best_search = RandomizedSearchCV(estimator=classifier,
+                                     param_distributions=params,
+                                     scoring="accuracy",
+                                     n_iter=n_iter, # n_iter=10 by default
+                                     random_state=random_state)
+    best_search.fit(X, y)
+    if print_best:
+        print(best_search.best_estimator_, "\n", best_search.best_score_, "\n", best_search.best_params_)
+    return best_search
