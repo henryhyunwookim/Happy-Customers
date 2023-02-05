@@ -182,7 +182,7 @@ def split_data(X, y, test_size, random_state=None, oversampling=True):
 
 def update_dicts(clf, X, y, n_splits, n, eval_dict, scores_dict, key, random_state, _type):
     start_time = time.time()
-    scores = cross_val_score(clf, X, y, scoring='roc_auc', # roc_auc, accuracy
+    scores = cross_val_score(clf, X, y, scoring='roc_auc', # roc_auc, accuracy, f1
                              cv=RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n, random_state=random_state))
     time_elapsed = time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
     
@@ -200,9 +200,7 @@ def update_dicts(clf, X, y, n_splits, n, eval_dict, scores_dict, key, random_sta
     print(f"{_type}: {key}")
     print(eval_dict[key], "\n")
 
-    scores_dict_sorted = dict(sorted(scores_dict.items(), key=lambda x: x[1], reverse=True))
-
-    return eval_dict, scores_dict_sorted
+    return eval_dict, scores_dict
 
 
 def get_dicts(X, y, n_splits, n, random_state,
@@ -215,8 +213,7 @@ def get_dicts(X, y, n_splits, n, random_state,
     if classifiers != None:
         for classifier in classifiers:
             key = type(classifier).__name__
-            clf = make_pipeline(classifier)
-            eval_dict, scores_dict = update_dicts(clf, X, y, n_splits, n,
+            eval_dict, scores_dict = update_dicts(classifier, X, y, n_splits, n,
                                                   eval_dict, scores_dict, key, random_state,
                                                   "Classifier")
 
@@ -224,8 +221,9 @@ def get_dicts(X, y, n_splits, n, random_state,
         if classifier == None:
             raise Exception("You need to specify a classifier!")
         for features in combinations:
+            key = ", ".join(features)
             eval_dict, scores_dict = update_dicts(classifier, X[features], y, n_splits, n,
-                                                  eval_dict, scores_dict, ", ".join(features), random_state,
+                                                  eval_dict, scores_dict, key, random_state,
                                                   "Features")
             
     elif transformers != None:
@@ -249,7 +247,9 @@ def get_dicts(X, y, n_splits, n, random_state,
     else:
         raise Exception("Failed to determine what to evaluate.")
 
-    return eval_dict, scores_dict
+    scores_dict_sorted = dict(sorted(scores_dict.items(), key=lambda x: np.mean(x[1]), reverse=True))
+
+    return eval_dict, scores_dict_sorted
 
 
 def plot_scores(scores_dict):
@@ -377,26 +377,19 @@ def eval_decomposers(X, y, n_splits, n, random_state, classifier, decomposers=No
     return eval_df
 
 
-def tune_xgb_clr(X, y, n_iter=10, random_state=None, print_best=True):
-    classifier = XGBClassifier(random_state=random_state, verbosity=0)
-    params = {
-        "eta": np.arange(0.01, 0.3, 0.01), # Typical final values : 0.01-0.2
-        # "gamma": 
-        "max_depth": np.arange(1,10,1), # Typical values: 3-10
-        "min_child_weight": np.arange(1, 10, 1), # The larger min_child_weight is, the more conservative the algorithm will be.
-        "subsample": np.arange(0, 0.5, 0.1), # Typical values: 0.5-1; Lower values make the algorithm more conservative and prevents overfitting but too small values might lead to under-fitting.
-        "lambda": np.arange(0, 0.5, 0.01), # L2 regularization term on weights (analogous to Ridge regression). Increasing this value will make model more conservative.
-        "alpha": np.arange(0, 0.5, 0.01), # L1 regularization term on weights (analogous to Lasso regression). Increasing this value will make model more conservative.
-        "tree_method": ["auto", "exact", "approx", "hist", "gpu_hist"] # The tree construction algorithm used in XGBoost.
-    }
-    # https://xgboost.readthedocs.io/en/stable/parameter.html
-    # https://www.kaggle.com/code/prashant111/a-guide-on-xgboost-hyperparameters-tuning/notebook
+def hyperparameter_tuning_and_evaluation(n_iter, cv, random_state, X_train, y_train, X_test, y_test, params):
+    classifier = LogisticRegression(random_state=random_state)
+
     best_search = RandomizedSearchCV(estimator=classifier,
-                                     param_distributions=params,
-                                     scoring="roc_auc",
-                                     n_iter=n_iter, # n_iter=10 by default
-                                     random_state=random_state)
-    best_search.fit(X, y)
-    if print_best:
-        print(best_search.best_estimator_, "\n", best_search.best_score_, "\n", best_search.best_params_)
+                                    param_distributions=params,
+                                    scoring="f1",
+                                    n_iter=n_iter, # n_iter=10 by default
+                                    random_state=random_state,
+                                    cv=cv)
+    best_search.fit(X_train, y_train)
+    # print(best_search.best_estimator_, "\n", best_search.best_score_, "\n", best_search.best_params_)
+
+    score = accuracy_score(y_test, best_search.best_estimator_.predict(X_test))
+    print(f"n_iter: {n_iter}, cv: {cv}, best_score: {round(best_search.best_score_, 2)}, test_score: {round(score, 2)}")
+    
     return best_search
