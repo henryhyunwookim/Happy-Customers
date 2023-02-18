@@ -28,4 +28,3 @@ Attributes X1 to X6 indicate the responses for each question and have values fro
 - Using a feature selection approach, identify any question that we can remove in our next survey.
 
 ##### Source: Apziva
-##### Mentor: Chaitra Latha
