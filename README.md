@@ -27,4 +27,10 @@ Attributes X1 to X6 indicate the responses for each question and have values fro
 - Using a feature selection approach, identify the minimal set of attributes/features that would preserve the most information about the problem while increasing predictability of the data we have.
 - Using a feature selection approach, identify any question that we can remove in our next survey.
 
+### <b>Notebook and Installation</b>
+
+To run Happy Costomers.ipynb locally, please clone or fork this repo and install the required packages by running the following command:
+
+pip install -r requirements.txt
+
 ##### Source: Apziva
