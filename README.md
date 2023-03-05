@@ -33,4 +33,6 @@ To run Happy Costomers.ipynb locally, please clone or fork this repo and install
 
 pip install -r requirements.txt
 
+You can also view the notebook saved as PDF (Happy Costomers - Jupyter Notebook.pdf) in this repository without having to install anything.
+
 ##### Source: Apziva
