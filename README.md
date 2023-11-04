@@ -60,4 +60,4 @@ pip install -r requirements.txt
 
 You can also view the notebook saved as PDF (Happy Costomers - Jupyter Notebook.pdf) in this repository without having to install anything.
 
-##### Source: Apziva
+##### Associated with Apziva
